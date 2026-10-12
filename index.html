@@ -1907,7 +1907,7 @@ function boot(){try{initGL()}catch(e){showFail(new Error('3D graphics (WebGL) ar
 window.__startGame=function(){initAudio();boot()};
 
 /* =================== MULTIPLAYER: room codes, peer-to-peer via PeerJS =================== */
-const NET={peer:null,host:false,conn:null,conns:new Map(),players:[],myId:null,code:null,status:'',settings:{game:'race',track:'bahrain',laps:5,weather:'dynamic',blimit:10,amode:'ffa',alimit:20},states:{},mstates:{},inRace:false,tire:'medium',race:null};
+const NET={peer:null,host:false,conn:null,conns:new Map(),players:[],myId:null,code:null,status:'',settings:{game:'race',track:'bahrain',laps:5,weather:'dynamic',blimit:5,bmode:'box',amode:'ffa',alimit:20},states:{},mstates:{},inRace:false,tire:'medium',race:null};
 const PREVIEW=/claude\.ai$|claudeusercontent|anthropic/.test(location.hostname);
 function loadPeer(){return new Promise((res,rej)=>{if(window.Peer)return res();const add=(src,next)=>{const s=document.createElement('script');s.src=src;s.onload=()=>window.Peer?res():next();s.onerror=next;document.head.appendChild(s)};
   add('https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',()=>add('https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js',()=>rej(new Error('Could not download the multiplayer library. Your network may be blocking it.'))))})}
@@ -1945,7 +1945,7 @@ function hostData(conn,d){if(!d||typeof d!=='object')return;
   else if(d.t==='ev'&&d.e&&typeof d.e==='object'&&NET.conns.has(conn.peer)){const m={t:'ev',e:d.e,from:conn.peer};NET.conns.forEach((c,id)=>{if(id!==conn.peer&&c.open)try{c.send(m)}catch(x){}});if(MINI.cur&&MINI.online&&MINI.cur.netEvent)MINI.cur.netEvent(d.e,conn.peer)}}
 function dropPlayer(id){if(!NET.conns.has(id))return;NET.conns.delete(id);NET.players=NET.players.filter(p=>p.id!==id);delete NET.states[id];delete NET.mstates[id];if(MINI.cur&&MINI.online&&MINI.cur.netLeft)MINI.cur.netLeft(id);bcast(lobbyMsg());bcast({t:'left',id});markLeft(id);mpSoft()}
 function clientData(d){if(!d||typeof d!=='object')return;
-  if(d.t==='lobby'&&Array.isArray(d.players)){NET.players=d.players.slice(0,10).map(p=>sanitizeP(p,p.id));if(d.settings&&TRACKS.some(t=>t.id===d.settings.track)){const q=d.settings;NET.settings={game:['race','build','air'].includes(q.game)?q.game:'race',track:q.track,laps:clamp(parseInt(q.laps)||5,1,20),weather:['dynamic','dry','wet'].includes(q.weather)?q.weather:'dynamic',blimit:clamp(parseInt(q.blimit)||10,1,50),amode:q.amode==='team'?'team':'ffa',alimit:clamp(parseInt(q.alimit)||20,1,100)}}mpSoft()}
+  if(d.t==='lobby'&&Array.isArray(d.players)){NET.players=d.players.slice(0,10).map(p=>sanitizeP(p,p.id));if(d.settings&&TRACKS.some(t=>t.id===d.settings.track)){const q=d.settings;NET.settings={game:['race','build','air'].includes(q.game)?q.game:'race',track:q.track,laps:clamp(parseInt(q.laps)||5,1,20),weather:['dynamic','dry','wet'].includes(q.weather)?q.weather:'dynamic',blimit:clamp(parseInt(q.blimit)||10,1,50),bmode:q.bmode==='ffa'?'ffa':'box',amode:q.amode==='team'?'team':'ffa',alimit:clamp(parseInt(q.alimit)||20,1,100)}}mpSoft()}
   else if(d.t==='start'){if(d.game&&d.game!=='race')startOnlineMini(d);else mpStart(d)}
   else if(d.t==='ev'&&d.e&&typeof d.e==='object'){if(MINI.cur&&MINI.online&&MINI.cur.netEvent)MINI.cur.netEvent(d.e,String(d.from))}
   else if(d.t==='msnap'&&d.s&&typeof d.s==='object'){for(const id in d.s)if(id!==NET.myId)NET.mstates[id]=cleanM(d.s[id])}
@@ -1956,7 +1956,7 @@ function clientData(d){if(!d||typeof d!=='object')return;
 function hostGone(){if(SES&&SES.mp&&screenName==='drive')setMsg('Host left','The room has closed',3);const wasMini=MINI.cur&&MINI.online;leaveRoom(true);if(wasMini){exitMini();mpStatus('The host left, so the room closed.')}}
 function mpSoft(){if(screenName==='mp')renderMP()}
 function hostStart(){if(!NET.host)return;const g=NET.settings.game;if(g!=='race'){const teams={};NET.players.slice().sort(()=>Math.random()-0.5).forEach((p,i)=>teams[p.id]=i%2?'b':'r');
-    const msg={t:'start',game:g,players:NET.players,limit:g==='build'?NET.settings.blimit:NET.settings.alimit,teams:g==='air'&&NET.settings.amode==='team'?teams:null};bcast(msg);startOnlineMini(msg);return}const def=TRACKS.find(t=>t.id===NET.settings.track),laps=NET.settings.laps,wx=makeWeather(def,NET.settings.weather,laps*120+200);
+    const msg={t:'start',game:g,players:NET.players,limit:g==='build'?NET.settings.blimit:NET.settings.alimit,bmode:NET.settings.bmode,teams:g==='air'&&NET.settings.amode==='team'?teams:null};bcast(msg);startOnlineMini(msg);return}const def=TRACKS.find(t=>t.id===NET.settings.track),laps=NET.settings.laps,wx=makeWeather(def,NET.settings.weather,laps*120+200);
   const msg={t:'start',track:def.id,laps,sched:wx.sched,grid:NET.players.map(p=>p.id).sort(()=>Math.random()-0.5),players:NET.players,goT:5+rnd(0.4,2)};bcast(msg);mpStart(msg)}
 function mpStart(d){const def=TRACKS.find(t=>t.id===d.track);if(!def||!Array.isArray(d.grid)||!Array.isArray(d.sched))return;NET.inRace=true;
   NET.race={players:(d.players||[]).map(p=>sanitizeP(p,p.id))};const sched=d.sched.slice(0,200).map(s=>({t:+s.t||0,i:clamp(+s.i||0,0,1)}));
@@ -1966,7 +1966,7 @@ function startOnlineMini(d){const id=d.game==='build'?'build':'air';const def=MI
   const players=d.players.slice(0,10).map(p=>sanitizeP(p,p.id));let teams=null;if(d.teams&&typeof d.teams==='object'){teams={};for(const p of players)teams[p.id]=d.teams[p.id]==='b'?'b':'r'}
   if(SES&&!SES.ended){SES.ended=true;clearCars();SES=null}if(MINI.cur){try{MINI.cur.dispose()}catch(x){}MINI.cur=null}hideMiniPanel();
   if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();go('mini');$('#miniHud').innerHTML='';MINI.def=def;MINI.online=true;
-  MINI.cur=def.make({online:{myId:NET.myId,players,limit:clamp(parseInt(d.limit)||10,1,100),teams}});MINI.cur.introOnline()}
+  MINI.cur=def.make({online:{myId:NET.myId,players,limit:clamp(parseInt(d.limit)||10,1,100),teams,bmode:d.bmode==='ffa'?'ffa':'box'}});MINI.cur.introOnline()}
 function makeRemote(T,p,s0,lat){const q=ptAt(T,s0,lat),code=(p.name.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase())||('#'+p.num);
   const r={isRemote:true,id:p.id,name:p.name,code,num:p.num,color:p.primary,x:q.x,z:q.z,h:q.h,u:0,lap:0,s:wrapS(T,s0),cp:[],finished:false,finishTime:null,pits:0,penalty:0,speed:0,pit:0,frozen:0,tire:'medium',best:null,last:null,team:{n:'#'+p.num}};
   r.mesh=makeCar({primary:p.primary,secondary:p.secondary,helmet:p.helmet,pattern:p.pattern,num:p.num,tire:'medium'});scene.add(r.mesh);return r}
@@ -1992,7 +1992,7 @@ function renderMP(){const el=$('#mpBody');if(!el)return;
     <div class="card col"><h3>Play your friends</h3><button class="btn primary" id="mpHost">Create a room</button>
       <div class="row"><input type="text" id="mpCode" maxlength="5" placeholder="Room code" autocomplete="off" style="text-transform:uppercase;width:150px;font-size:18px;letter-spacing:.12em"><button class="btn" id="mpJoin">Join room</button></div>
       <p id="mpStatus" style="font-size:14px;margin:0;color:var(--yellow)">${esc(NET.status||previewNote())}</p>
-      <div class="set"><span>Game</span><div class="seg">${[['race','F1 race'],['build','Build Duel'],['air','Airsoft']].map(([v,l])=>`<button data-pg="${v}" class="${NET.settings.game===v?'on':''}">${l}</button>`).join('')}</div></div>
+      <div class="set"><span>Game</span><div class="seg">${[['race','F1 race']].map(([v,l])=>`<button data-pg="${v}" class="${NET.settings.game===v?'on':''}">${l}</button>`).join('')}</div></div>
       <p class="muted" style="font-size:12px;margin:0">Up to 10 players. Everyone opens jacjones.net, one person creates a room, the others join with its code. The host's game choice is used. Some school networks block peer-to-peer connections.</p></div></div>`;
     $('#mpName').onchange=e=>{S.settings.name=e.target.value.trim().slice(0,20)||'Driver 24';save()};$('#mpNumIn').onchange=e=>{S.mpNum=clamp(parseInt(e.target.value)||24,1,99);e.target.value=S.mpNum;save()};
     $$('[data-pg]').forEach(b=>b.onclick=()=>{NET.settings.game=b.dataset.pg;renderMP()});$('#mpHost').onclick=hostRoom;$('#mpJoin').onclick=()=>joinRoom($('#mpCode').value);$('#mpCode').onkeydown=e=>{if(e.key==='Enter')joinRoom(e.target.value)};return}
@@ -2001,13 +2001,13 @@ function renderMP(){const el=$('#mpBody');if(!el)return;
       <h3>Drivers (${NET.players.length}/10)</h3><div class="tscroll"><table>${NET.players.map(p=>`<tr class="${p.id===NET.myId?'me':''}"><td><span class="teamdot" style="background:${p.primary}"></span>#${p.num}</td><td>${esc(p.name)}</td><td class="muted">${p.id==='host'?'Host':''}${p.id===NET.myId?' (you)':''}</td></tr>`).join('')}</table></div>
       <button class="btn small" id="mpLeave">Leave room</button></div>
     <div class="card col"><h3>Race settings</h3>${NET.host?'':'<p class="muted" style="margin:0;font-size:13px">The host picks the circuit and rules.</p>'}
-      <div class="set"><span>Game</span>${seg('game',[['race','F1 race'],['build','Build Duel'],['air','Airsoft']])}</div>
+      <div class="set"><span>Game</span>${seg('game',[['race','F1 race']])}</div>
       ${S2.game==='race'?`<div class="set"><span>Circuit</span><select id="mpTrack" ${NET.host?'':'disabled'}>${TRACKS.map(t=>`<option value="${t.id}" ${t.id===def.id?'selected':''}>${esc(t.gp)}</option>`).join('')}</select></div>
       <div class="set"><span>Laps</span>${seg('laps',[[3,'3'],[5,'5'],[8,'8'],[12,'12']])}</div><div class="set"><span>Weather</span>${seg('weather',[['dynamic','Dynamic'],['dry','Dry'],['wet','Wet']])}</div>
       <h3>Your tyres</h3><div class="tyres" id="mpTyres">${TKEYS.map(k=>`<div class="tyre-wrap"><button class="tyre${NET.tire===k?' sel':''}" style="--c:${TIRES[k].c}" data-t="${k}">${TIRES[k].l}</button>${TIRES[k].n}</div>`).join('')}</div>`
-      :S2.game==='build'?`<div class="set"><span>Win at</span>${seg('blimit',[[5,'5'],[10,'10'],[20,'20']])}</div><p class="muted" style="margin:0;font-size:13px">Free-for-all build fight. Everyone's walls, ramps, floors and edits are shared. Keybinds from Build Duel apply.</p>`
+      :S2.game==='build'?`<div class="set"><span>Mode</span>${seg('bmode',[['box','Box fight'],['ffa','Build fight']])}</div><div class="set"><span>${S2.bmode==='ffa'?'Eliminations to win':'Rounds to win'}</span>${seg('blimit',[[3,'3'],[5,'5'],[10,'10']])}</div><p class="muted" style="margin:0;font-size:13px">${S2.bmode==='ffa'?'Free-for-all in an open field. Everyone sees your builds and edits.':'Everyone starts boxed up in a small arena. Last one standing wins the round.'} Keybinds and settings from Build Duel apply.</p>`
       :`<div class="set"><span>Mode</span>${seg('amode',[['ffa','Free-for-all'],['team','Red vs blue']])}</div><div class="set"><span>Win at</span>${seg('alimit',[[10,'10'],[20,'20'],[40,'40']])}</div><p class="muted" style="margin:0;font-size:13px">Three hits and you walk back to spawn. Teams are picked at random when the game starts.</p>`}
-      ${NET.host?`<button class="btn primary" id="mpStart" ${NET.inRace?'disabled':''}>Start ${{race:'race',build:'build fight',air:'airsoft game'}[S2.game]}</button>`:'<p style="margin:0">Waiting for the host to start…</p>'}<p id="mpStatus" class="muted" style="font-size:14px;margin:0">${esc(NET.status)}</p></div></div>`;
+      ${NET.host?`<button class="btn primary" id="mpStart" ${NET.inRace?'disabled':''}>Start ${{race:'race',build:S2.bmode==='ffa'?'build fight':'box fight',air:'airsoft game'}[S2.game]}</button>`:'<p style="margin:0">Waiting for the host to start…</p>'}<p id="mpStatus" class="muted" style="font-size:14px;margin:0">${esc(NET.status)}</p></div></div>`;
   $('#mpCopy').onclick=()=>{try{navigator.clipboard.writeText(NET.code).then(()=>toast('Code copied'),()=>toast('Code: '+NET.code))}catch(e){toast('Code: '+NET.code)}};
   $('#mpLeave').onclick=()=>leaveRoom();$$('#mpTyres .tyre').forEach(b=>b.onclick=()=>{NET.tire=b.dataset.t;renderMP()});
   if(NET.host){if($('#mpTrack'))$('#mpTrack').onchange=e=>{NET.settings.track=e.target.value;bcast(lobbyMsg())};$$('[data-ms]').forEach(b=>b.onclick=()=>{const k=b.dataset.ms;NET.settings[k]=['laps','blimit','alimit'].includes(k)?+b.dataset.mv:b.dataset.mv;bcast(lobbyMsg());renderMP()});$('#mpStart').onclick=hostStart}}
